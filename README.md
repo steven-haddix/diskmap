@@ -1,7 +1,10 @@
-# DiskMap
 
+# DiskMap
 A native macOS app for finding what's filling your disk and clearing it out.
 
+<img width="1413" height="979" alt="Screenshot 2026-10-26 at 4 14 01 PM" src="https://github.com/user-attachments/assets/ffded144-502e-4a6e-915d-e67f6bfdd801" />
+
+## Features
 - **Sunburst and treemap** views of the same scan (toggle in the toolbar). Colors show the
   kind of space: LLM models, Xcode & simulators, code & worktrees, Docker, temp & Trash, ...
 - **Fast:** scans on every core with `getattrlistbulk(2)`. About 1 minute for 11M files,
