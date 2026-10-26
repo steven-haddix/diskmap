@@ -187,6 +187,10 @@ final class AppModel {
         var bytes: Int64 = 0
         var count = 0
         for node in items {
+            guard node.isStillAtPath else {
+                failures.append("\(Style.path(node)): it was replaced or moved since the scan, so it was left alone. Rescan, then try again.")
+                continue
+            }
             do {
                 try FileManager.default.trashItem(at: URL(fileURLWithPath: node.path), resultingItemURL: nil)
                 bytes += node.size

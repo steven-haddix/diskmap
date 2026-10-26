@@ -33,7 +33,7 @@ public final class DiskScanner: @unchecked Sendable {
     private static let bufferSize = 256 * 1024
 
     public init(path: String) {
-        root = Node(name: path, parent: nil, kind: .directory)
+        root = Node(name: path, parent: nil, kind: .directory, fileID: Self.fileID(of: path))
         replacing = nil
         pending = [(root, path)]
         linkOwners = Mutex([:])
@@ -43,7 +43,7 @@ public final class DiskScanner: @unchecked Sendable {
     /// Rescans one folder from an earlier scan (`previous`, or the last rescan after it)
     /// into a fresh, unattached node; `spliceIntoTree()` swaps it in once done.
     public init(rescanning folder: Node, from previous: DiskScanner) {
-        root = Node(name: folder.name, parent: folder.parent, kind: .directory)
+        root = Node(name: folder.name, parent: folder.parent, kind: .directory, fileID: Self.fileID(of: folder.path))
         replacing = folder
         pending = [(root, folder.path)]
         let outside = { (owner: Node) in owner !== folder && !owner.isDescendant(of: folder) }
@@ -210,7 +210,7 @@ public final class DiskScanner: @unchecked Sendable {
 
                 if objectType == VDIR.rawValue {
                     if mountStatus & UInt32(DIR_MNTSTATUS_MNTPOINT) != 0 { continue }
-                    let child = Node(name: name, parent: directory, kind: .directory)
+                    let child = Node(name: name, parent: directory, kind: .directory, fileID: fileID)
                     children.append(child)
                     subdirectories.append((child, prefix + name))
                     continue
@@ -229,7 +229,7 @@ public final class DiskScanner: @unchecked Sendable {
                 filesListed += 1
                 fileBytes += allocated
                 if allocated >= Self.individualFileThreshold {
-                    children.append(Node(name: name, parent: directory, kind: .file, bytes: allocated))
+                    children.append(Node(name: name, parent: directory, kind: .file, bytes: allocated, fileID: fileID))
                 } else {
                     smallBytes += allocated
                     smallCount += 1
@@ -252,6 +252,12 @@ public final class DiskScanner: @unchecked Sendable {
             node = n === root ? nil : n.parent
         }
         return subdirectories
+    }
+
+    /// Inode of the scan root itself (0 if it can't be read), which the bulk listing doesn't return.
+    private static func fileID(of path: String) -> UInt64 {
+        var info = stat()
+        return lstat(path, &info) == 0 ? info.st_ino : 0
     }
 
     /// True if this is the first sighting, which then gets the full-size credit.

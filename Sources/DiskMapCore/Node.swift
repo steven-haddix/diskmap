@@ -1,3 +1,4 @@
+import Darwin
 import Synchronization
 
 /// One entry in the scanned tree. Directories hold their children; files below
@@ -13,13 +14,16 @@ public final class Node: Identifiable, @unchecked Sendable {
     public let bytes = Atomic<Int64>(0)
     /// Number of files rolled into a `.smallFiles` node (0 otherwise).
     public let fileCount: Int
+    /// Inode when scanned (0 for `.smallFiles`), to tell later whether the path still leads here.
+    public let fileID: UInt64
     private let _children = Mutex<[Node]>([])
 
-    public init(name: String, parent: Node?, kind: Kind, bytes: Int64 = 0, fileCount: Int = 0) {
+    public init(name: String, parent: Node?, kind: Kind, bytes: Int64 = 0, fileCount: Int = 0, fileID: UInt64 = 0) {
         self.name = name
         self.parent = parent
         self.kind = kind
         self.fileCount = fileCount
+        self.fileID = fileID
         self.bytes.store(bytes, ordering: .relaxed)
     }
 
@@ -48,6 +52,18 @@ public final class Node: Identifiable, @unchecked Sendable {
 
     public func isDescendant(of other: Node) -> Bool {
         ancestors.contains { $0 === other }
+    }
+
+    /// False if the path now leads somewhere other than the item that was scanned: it was
+    /// replaced, or a folder on the way was swapped for a link. Every folder from the scan
+    /// root down is checked, not just the item, so a link to another volume (where inode
+    /// numbers can repeat) is caught too. Something can still change between this check
+    /// and acting on the path; this narrows that window, it can't close it.
+    public var isStillAtPath: Bool {
+        ([self] + ancestors).allSatisfy { node in
+            var info = stat()
+            return lstat(node.path, &info) == 0 && info.st_ino == node.fileID
+        }
     }
 
     /// Swap in a freshly rescanned copy of this folder, adjusting every ancestor's total

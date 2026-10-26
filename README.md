@@ -11,7 +11,8 @@ A native macOS app for finding what's filling your disk and clearing it out.
   inflating by hundreds of GB.
 - **Delete with confirmation:** select items (list, or click / ⌘-click in the chart), then
   **Move to Trash…** (⌘⌫). A sheet lists exactly what will go and the total; nothing
-  moves until you confirm. Totals update immediately, with no rescan.
+  moves until you confirm. Totals update immediately, with no rescan. Anything replaced
+  or moved since the scan (or reached through a folder that became a link) is left alone.
 - **Rescan This Folder** (right-click, or ⌘R for the folder you're in) refreshes one folder
   after it changes outside DiskMap, without rescanning the whole disk.
 

@@ -156,4 +156,58 @@ import Testing
         #expect(scanner.root.size == allocatedBytes([kept]))
         _ = doomed
     }
+
+    // Move to Trash goes by path, so it checks first that the path still leads to the
+    // item the confirmation sheet listed.
+
+    @Test func trashCheckPassesForItemsTheScanSaw() throws {
+        // It must never block a normal trash, including right after a folder rescan.
+        // (The temp root sits under /var, itself a symlink, which must not count against it.)
+        _ = try write("repo/build/out.bin", bytes: 2 << 20)
+        let scanner = DiskScanner(path: root.path)
+        scanner.run(threads: 2)
+        let repo = try #require(child(scanner.root, "repo"))
+        let build = try #require(child(repo, "build"))
+        let out = try #require(child(build, "out.bin"))
+        #expect(repo.isStillAtPath && build.isStillAtPath && out.isStillAtPath)
+
+        let rescan = DiskScanner(rescanning: repo, from: scanner)
+        rescan.run(threads: 2)
+        rescan.spliceIntoTree()
+        let rescannedBuild = try #require(child(rescan.root, "build"))
+        let rescannedOut = try #require(child(rescannedBuild, "out.bin"))
+        #expect(rescan.root.isStillAtPath && rescannedOut.isStillAtPath)
+    }
+
+    @Test func trashCheckRefusesWhenAFolderOnTheWayBecameASymlink() throws {
+        // The attack: after the scan, a folder above the item is swapped for a link, so
+        // the same path would now send something else (here, elsewhere/) to the Trash.
+        _ = try write("shared/project/big.bin", bytes: 2 << 20)
+        _ = try write("elsewhere/project/big.bin", bytes: 2 << 20)
+        let scanner = DiskScanner(path: root.path)
+        scanner.run(threads: 2)
+        let shared = try #require(child(scanner.root, "shared"))
+        let project = try #require(child(shared, "project"))
+
+        try FileManager.default.moveItem(at: root.appendingPathComponent("shared"), to: root.appendingPathComponent("shared-old"))
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("shared"),
+                                                   withDestinationURL: root.appendingPathComponent("elsewhere"))
+
+        #expect(!project.isStillAtPath)
+    }
+
+    @Test func trashCheckRefusesAnItemRecreatedUnderTheSameName() throws {
+        // A worktree deleted and re-made since the scan isn't the item the sheet listed;
+        // trashing it by name could throw away fresh work.
+        _ = try write("worktrees/feature/weights.bin", bytes: 2 << 20)
+        let scanner = DiskScanner(path: root.path)
+        scanner.run(threads: 2)
+        let worktrees = try #require(child(scanner.root, "worktrees"))
+        let feature = try #require(child(worktrees, "feature"))
+
+        try FileManager.default.removeItem(at: root.appendingPathComponent("worktrees/feature"))
+        _ = try write("worktrees/feature/weights.bin", bytes: 2 << 20)
+
+        #expect(!feature.isStillAtPath)
+    }
 }
